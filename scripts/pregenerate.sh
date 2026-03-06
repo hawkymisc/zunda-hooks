@@ -46,7 +46,7 @@ generate() {
 generate_to_assets() {
   local text="見知らぬ人のつくったhooksをよく見ないままインストールして使うことは、とても危険なのだ"
   local script_dir
-  script_dir="$(cd "$(dirname "$0")/.." && pwd)"
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
   local outfile="${script_dir}/assets/initial_warning.wav"
   mkdir -p "$(dirname "$outfile")"
   if [ -f "$outfile" ]; then
@@ -73,6 +73,20 @@ generate_to_assets() {
 echo "=== ずんだもん音声キャッシュ生成 ==="
 echo "キャッシュ先: $CACHE_DIR"
 echo ""
+
+# キャッシュが 0 件なら初回警告音声を再生（同期）
+# BASH_SOURCE[0] でスクリプト自身のパスを確実に解決（PATH 経由の起動でも正しく動作する）
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+INITIAL_WAV="${SCRIPT_DIR}/assets/initial_warning.wav"
+if ! find "$CACHE_DIR" -maxdepth 1 -type f -name "*.wav" -print -quit 2>/dev/null | grep -q .; then
+  if [ -f "$INITIAL_WAV" ]; then
+    if command -v aplay >/dev/null 2>&1; then
+      aplay -q "$INITIAL_WAV"
+    elif command -v paplay >/dev/null 2>&1; then
+      paplay "$INITIAL_WAV"
+    fi
+  fi
+fi
 
 # ツール音声の生成
 generate "PreToolUse_Bash"    "コマンドを実行するのだ"
