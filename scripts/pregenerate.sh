@@ -74,6 +74,20 @@ echo "=== ずんだもん音声キャッシュ生成 ==="
 echo "キャッシュ先: $CACHE_DIR"
 echo ""
 
+# キャッシュが 0 件なら初回警告音声を再生（同期）
+WAV_COUNT=$(find "$CACHE_DIR" -maxdepth 1 -type f -name "*.wav" 2>/dev/null | wc -l | tr -d ' ')
+if [ "$WAV_COUNT" -eq 0 ]; then
+  SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+  INITIAL_WAV="${SCRIPT_DIR}/assets/initial_warning.wav"
+  if [ -f "$INITIAL_WAV" ]; then
+    if command -v aplay >/dev/null 2>&1; then
+      aplay -q "$INITIAL_WAV"
+    elif command -v paplay >/dev/null 2>&1; then
+      paplay "$INITIAL_WAV"
+    fi
+  fi
+fi
+
 # ツール音声の生成
 generate "PreToolUse_Bash"    "コマンドを実行するのだ"
 generate "PreToolUse_Write"   "ファイルを書き込むのだ"
