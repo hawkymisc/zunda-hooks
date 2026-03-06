@@ -19,35 +19,63 @@ INPUT=$(cat)
 EVENT=$(echo "$INPUT" | jq -r '.hook_event_name // ""')
 TOOL=$(echo "$INPUT" | jq -r '.tool_name // ""')
 
-# テキストマッピング
-build_text() {
-  local event="$1" tool="$2"
+# Bash ツールのコマンド内容を取得（git push / gh pr create 検出用）
+BASH_CMD=$(echo "$INPUT" | jq -r '.tool_input.command // ""')
+
+# テキストとキャッシュキーのマッピング
+# 戻り値: "TEXT\tCACHE_KEY"（タブ区切り）
+resolve() {
+  local event="$1" tool="$2" cmd="$3"
+  # Bash の場合はコマンド内容で細分化
+  if [ "$event" = "PreToolUse" ] && [ "$tool" = "Bash" ]; then
+    if echo "$cmd" | grep -qE '(^|[;&|[:space:]])git[[:space:]]+push([[:space:]]|$)'; then
+      printf '%s\t%s' "プッシュするのだ" "PreToolUse_Bash_GitPush"
+      return
+    fi
+    if echo "$cmd" | grep -qE '(^|[;&|[:space:]])(gh[[:space:]]+pr[[:space:]]+create)([[:space:]]|$)'; then
+      printf '%s\t%s' "プルリクエストを作るのだ" "PreToolUse_Bash_GhPrCreate"
+      return
+    fi
+  fi
+  if [ "$event" = "PostToolUse" ] && [ "$tool" = "Bash" ]; then
+    PREV_CMD=$(echo "$INPUT" | jq -r '.tool_input.command // ""')
+    if echo "$PREV_CMD" | grep -qE '(^|[;&|[:space:]])git[[:space:]]+push([[:space:]]|$)'; then
+      printf '%s\t%s' "プッシュが完了したのだ" "PostToolUse_Bash_GitPush"
+      return
+    fi
+    if echo "$PREV_CMD" | grep -qE '(^|[;&|[:space:]])(gh[[:space:]]+pr[[:space:]]+create)([[:space:]]|$)'; then
+      printf '%s\t%s' "プルリクエストを作ったのだ" "PostToolUse_Bash_GhPrCreate"
+      return
+    fi
+  fi
+  # デフォルトマッピング
   case "${event}_${tool}" in
-    PreToolUse_Bash)   echo "コマンドを実行するのだ" ;;
-    PreToolUse_Write)  echo "ファイルを書き込むのだ" ;;
-    PreToolUse_Edit)   echo "ファイルを編集するのだ" ;;
-    PreToolUse_Read)   echo "ファイルを読むのだ" ;;
-    PreToolUse_Glob)   echo "ファイルを探すのだ" ;;
-    PreToolUse_Grep)   echo "ファイルを検索するのだ" ;;
-    PreToolUse_*)      echo "${tool}を使うのだ" ;;
-    PostToolUse_Bash)  echo "コマンドが完了したのだ" ;;
-    PostToolUse_Write) echo "書き込みが完了したのだ" ;;
-    PostToolUse_Edit)  echo "編集が完了したのだ" ;;
-    PostToolUse_*)     echo "${tool}が完了したのだ" ;;
-    *) echo "" ;;
+    PreToolUse_Bash)   printf '%s\t%s' "コマンドを実行するのだ"  "PreToolUse_Bash" ;;
+    PreToolUse_Write)  printf '%s\t%s' "ファイルを書き込むのだ"  "PreToolUse_Write" ;;
+    PreToolUse_Edit)   printf '%s\t%s' "ファイルを編集するのだ"  "PreToolUse_Edit" ;;
+    PreToolUse_Read)   printf '%s\t%s' "ファイルを読むのだ"      "PreToolUse_Read" ;;
+    PreToolUse_Glob)   printf '%s\t%s' "ファイルを探すのだ"      "PreToolUse_Glob" ;;
+    PreToolUse_Grep)   printf '%s\t%s' "ファイルを検索するのだ"  "PreToolUse_Grep" ;;
+    PreToolUse_*)      printf '%s\t%s' "${tool}を使うのだ"       "PreToolUse_${tool}" ;;
+    PostToolUse_Bash)  printf '%s\t%s' "コマンドが完了したのだ"  "PostToolUse_Bash" ;;
+    PostToolUse_Write) printf '%s\t%s' "書き込みが完了したのだ"  "PostToolUse_Write" ;;
+    PostToolUse_Edit)  printf '%s\t%s' "編集が完了したのだ"      "PostToolUse_Edit" ;;
+    PostToolUse_*)     printf '%s\t%s' "${tool}が完了したのだ"   "PostToolUse_${tool}" ;;
+    *)                 printf '%s\t%s' "" "" ;;
   esac
 }
 
-TEXT=$(build_text "$EVENT" "$TOOL")
+RESOLVED=$(resolve "$EVENT" "$TOOL" "$BASH_CMD")
+TEXT=$(echo "$RESOLVED" | cut -f1)
+CACHE_KEY=$(echo "$RESOLVED" | cut -f2)
+
 [ -z "$TEXT" ] && exit 0
 
 mkdir -p "$CACHE_DIR"
 
 # パストラバーサル防止: キャッシュキーを英数字・アンダースコアのみに制限
-SAFE_EVENT=$(echo "$EVENT" | tr -cd '[:alnum:]_')
-SAFE_TOOL=$(echo "$TOOL"  | tr -cd '[:alnum:]_')
-CACHE_KEY="${SAFE_EVENT}_${SAFE_TOOL}"
-CACHE_FILE="$CACHE_DIR/${CACHE_KEY}.wav"
+SAFE_KEY=$(echo "$CACHE_KEY" | tr -cd '[:alnum:]_')
+CACHE_FILE="$CACHE_DIR/${SAFE_KEY}.wav"
 
 # 音声再生コマンドを選択
 if command -v aplay >/dev/null 2>&1; then

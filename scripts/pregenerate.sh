@@ -84,6 +84,10 @@ generate "PreToolUse_Grep"    "ファイルを検索するのだ"
 generate "PostToolUse_Bash"   "コマンドが完了したのだ"
 generate "PostToolUse_Write"  "書き込みが完了したのだ"
 generate "PostToolUse_Edit"   "編集が完了したのだ"
+generate "PreToolUse_Bash_GitPush"     "プッシュするのだ"
+generate "PreToolUse_Bash_GhPrCreate"  "プルリクエストを作るのだ"
+generate "PostToolUse_Bash_GitPush"    "プッシュが完了したのだ"
+generate "PostToolUse_Bash_GhPrCreate" "プルリクエストを作ったのだ"
 
 # 初回警告音声の生成（assets/ へ保存）
 echo ""
