@@ -87,9 +87,16 @@ play_wav_bg() {
       afplay "$file" & ;;
     MINGW*|MSYS*|CYGWIN*)
       local winpath
-      winpath=$(cygpath -w "$file" 2>/dev/null || echo "$file")
+      if command -v cygpath >/dev/null 2>&1; then
+        winpath=$(cygpath -w "$file")
+      else
+        # cygpath 不在時: /c/Users/... 形式を c:\Users\... 形式に手動変換
+        winpath=$(printf '%s' "$file" | sed 's|^/\([a-zA-Z]\)/|\1:/|;s|/|\\|g')
+      fi
+      # シングルクォートをエスケープ（PowerShell インジェクション防止）
+      local escaped="${winpath//\'/\'\'}"
       powershell.exe -NoProfile -Command \
-        "(New-Object Media.SoundPlayer '$winpath').PlaySync()" 2>/dev/null & ;;
+        "(New-Object Media.SoundPlayer '$escaped').PlaySync()" 2>/dev/null & ;;
     *)
       if command -v aplay >/dev/null 2>&1; then
         aplay -q "$file" &

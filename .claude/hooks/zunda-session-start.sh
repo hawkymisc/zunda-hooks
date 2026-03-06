@@ -35,7 +35,12 @@ case "$OS" in
     ;;
   MINGW*|MSYS*|CYGWIN*)
     # Git Bash / MSYS2 / Cygwin on Windows
-    VOICEVOX_BIN="${LOCALAPPDATA}/Programs/VOICEVOX/VOICEVOX.exe"
+    if [ -z "${LOCALAPPDATA:-}" ]; then
+      echo "zunda-session-start: LOCALAPPDATA is not set; cannot locate VOICEVOX on Windows" >&2
+      VOICEVOX_BIN=""
+    else
+      VOICEVOX_BIN="${LOCALAPPDATA}/Programs/VOICEVOX/VOICEVOX.exe"
+    fi
     VOICEVOX_LAUNCH_OPTS=""
     ;;
   *)
@@ -52,11 +57,17 @@ play_wav() {
     Darwin*)
       afplay "$file" ;;
     MINGW*|MSYS*|CYGWIN*)
-      # cygpath が使える場合は Windows パスに変換してから PowerShell で再生
       local winpath
-      winpath=$(cygpath -w "$file" 2>/dev/null || echo "$file")
+      if command -v cygpath >/dev/null 2>&1; then
+        winpath=$(cygpath -w "$file")
+      else
+        # cygpath 不在時: /c/Users/... 形式を c:\Users\... 形式に手動変換
+        winpath=$(printf '%s' "$file" | sed 's|^/\([a-zA-Z]\)/|\1:/|;s|/|\\|g')
+      fi
+      # シングルクォートをエスケープ（PowerShell インジェクション防止）
+      local escaped="${winpath//\'/\'\'}"
       powershell.exe -NoProfile -Command \
-        "(New-Object Media.SoundPlayer '$winpath').PlaySync()" 2>/dev/null ;;
+        "(New-Object Media.SoundPlayer '$escaped').PlaySync()" 2>/dev/null ;;
     *)
       if command -v aplay >/dev/null 2>&1; then
         aplay -q "$file"
