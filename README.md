@@ -127,3 +127,12 @@ assets/
 
 `~/.claude/hooks/zaudio/` はユーザーホームに置かれるため、
 複数プロジェクトで共有されます（再生成不要）。
+
+## クレジット
+
+このプロジェクトは以下のソフトウェアおよびキャラクターを使用しています。
+
+- 音声合成: [VOICEVOX](https://voicevox.hiroshiba.jp/)
+- キャラクター音声: ずんだもん（CV: 七海うみ）
+  - `assets/initial_warning.wav` および `scripts/pregenerate.sh` で生成するキャッシュ音声は VOICEVOX により合成されたものです
+  - キャラクターの利用規約: https://zunko.jp/con_ongen_kiyaku.html
