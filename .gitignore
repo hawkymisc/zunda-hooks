@@ -1,0 +1,5 @@
+# セッション追跡ファイル（ローカル管理）
+.claude/hooks/zaudio/
+
+# macOS
+.DS_Store
