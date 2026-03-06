@@ -77,22 +77,43 @@ mkdir -p "$CACHE_DIR"
 SAFE_KEY=$(echo "$CACHE_KEY" | tr -cd '[:alnum:]_')
 CACHE_FILE="$CACHE_DIR/${SAFE_KEY}.wav"
 
-# 音声再生コマンドを選択
-if command -v aplay >/dev/null 2>&1; then
-  PLAYER="aplay -q"
-elif command -v paplay >/dev/null 2>&1; then
-  PLAYER="paplay"
-else
-  echo "zunda-speak: no audio player found (aplay/paplay)" >&2
-  exit 0
-fi
+# OS 別: WAV 再生関数（バックグラウンド再生）
+OS=$(uname -s)
+play_wav_bg() {
+  local file="$1"
+  [ -f "$file" ] || return
+  case "$OS" in
+    Darwin*)
+      afplay "$file" & ;;
+    MINGW*|MSYS*|CYGWIN*)
+      local winpath
+      if command -v cygpath >/dev/null 2>&1; then
+        winpath=$(cygpath -w "$file")
+      else
+        # cygpath 不在時: /c/Users/... 形式を c:\Users\... 形式に手動変換
+        winpath=$(printf '%s' "$file" | sed 's|^/\([a-zA-Z]\)/|\1:/|;s|/|\\|g')
+      fi
+      # シングルクォートをエスケープ（PowerShell インジェクション防止）
+      local escaped="${winpath//\'/\'\'}"
+      powershell.exe -NoProfile -Command \
+        "(New-Object Media.SoundPlayer '$escaped').PlaySync()" 2>/dev/null & ;;
+    *)
+      if command -v aplay >/dev/null 2>&1; then
+        aplay -q "$file" &
+      elif command -v paplay >/dev/null 2>&1; then
+        paplay "$file" &
+      else
+        echo "zunda-speak: no audio player found (aplay/paplay/afplay)" >&2
+      fi ;;
+  esac
+}
 
 # キャッシュヒット → 即再生（0バイトファイルは無効として削除）
 if [ -f "$CACHE_FILE" ]; then
   if [ ! -s "$CACHE_FILE" ]; then
     rm -f "$CACHE_FILE"
   else
-    $PLAYER "$CACHE_FILE" &
+    play_wav_bg "$CACHE_FILE"
     exit 0
   fi
 fi
@@ -116,7 +137,7 @@ curl -sf --connect-timeout 10 -X POST \
 # 正常なサイズか確認してからキャッシュに配置
 if [ -s "$TMP_FILE" ]; then
   mv "$TMP_FILE" "$CACHE_FILE"
-  $PLAYER "$CACHE_FILE" &
+  play_wav_bg "$CACHE_FILE"
 else
   rm -f "$TMP_FILE"
 fi
