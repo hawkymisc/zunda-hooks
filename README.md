@@ -7,28 +7,35 @@ Claude Code のツール実行時にずんだもん（VOICEVOX）が喋る Claud
 
 ## 要件
 
-| ツール | 確認コマンド |
-|---|---|
-| jq | `jq --version` |
-| aplay または paplay | `aplay --version` |
-| curl | `curl --version` |
-| python3 | `python3 --version` |
-| VOICEVOX (v0.25.1+) | `~/.voicevox/VOICEVOX.AppImage` |
-
-### jq のインストール（未インストールの場合）
-
-```bash
-sudo apt install jq   # Debian/Ubuntu
-```
+| ツール | Linux | macOS | Windows (Git Bash) |
+|---|---|---|---|
+| jq | `sudo apt install jq` | `brew install jq` | `winget install jqlang.jq` |
+| 音声再生 | `aplay` または `paplay` | `afplay`（標準搭載） | PowerShell（標準搭載） |
+| curl | 通常標準搭載 | 通常標準搭載 | Git Bash に同梱 |
+| python3 | 通常標準搭載 | 通常標準搭載 | `winget install Python.Python.3` |
+| VOICEVOX | `~/.voicevox/VOICEVOX.AppImage` | `/Applications/VOICEVOX.app` | `%LOCALAPPDATA%\Programs\VOICEVOX\VOICEVOX.exe` |
 
 ## セットアップ
 
 ### 1. VOICEVOX を起動
 
+**Linux**
 ```bash
 ~/.voicevox/VOICEVOX.AppImage --no-sandbox &
-# エンジンが起動するまで数秒待つ
-curl http://localhost:50021/version
+curl http://localhost:50021/version  # 起動確認
+```
+
+**macOS**
+```bash
+open -a VOICEVOX
+curl http://localhost:50021/version  # 起動確認
+```
+
+**Windows（Git Bash）**
+```bash
+# スタートメニューから VOICEVOX を起動するか:
+"$LOCALAPPDATA/Programs/VOICEVOX/VOICEVOX.exe" &
+curl http://localhost:50021/version  # 起動確認
 ```
 
 ### 2. 音声を事前生成
