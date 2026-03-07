@@ -77,8 +77,27 @@ play_wav() {
   esac
 }
 
-# VOICEVOX が未起動なら起動
-if ! curl -sf --connect-timeout 2 "${VOICEVOX_URL}/version" >/dev/null 2>&1; then
+# キャッシュマニフェストに記載された全ファイルが存在するか確認
+# マニフェストは pregenerate.sh 実行時に生成される
+# 注意: キャッシュ完備でも未知のツール名はリアルタイム合成が必要なため、
+#       VOICEVOX を使いたい場合は手動で起動するか pregenerate.sh を再実行してください
+CACHE_MANIFEST="$CACHE_DIR/.cache-manifest"
+ALL_CACHED=false
+if [ -f "$CACHE_MANIFEST" ]; then
+  ALL_CACHED=true
+  while IFS= read -r key || [ -n "$key" ]; do
+    [ -n "$key" ] || continue
+    # パストラバーサル防止: 英数字・アンダースコアのみ許可
+    [[ "$key" =~ ^[A-Za-z0-9_]+$ ]] || continue
+    if [ ! -s "$CACHE_DIR/${key}.wav" ]; then
+      ALL_CACHED=false
+      break
+    fi
+  done < "$CACHE_MANIFEST"
+fi
+
+# VOICEVOX が未起動なら起動（マニフェスト記載のキャッシュが全て揃っている場合はスキップ）
+if [ "$ALL_CACHED" = "false" ] && ! curl -sf --connect-timeout 2 "${VOICEVOX_URL}/version" >/dev/null 2>&1; then
   if [ -n "$VOICEVOX_BIN" ] && [ -f "$VOICEVOX_BIN" ]; then
     # shellcheck disable=SC2086
     nohup "$VOICEVOX_BIN" $VOICEVOX_LAUNCH_OPTS >/dev/null 2>&1 &
