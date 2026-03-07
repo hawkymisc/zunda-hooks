@@ -78,20 +78,40 @@ mkdir -p "$CACHE_DIR"
 SAFE_KEY=$(echo "$CACHE_KEY" | tr -cd '[:alnum:]_')
 CACHE_FILE="$CACHE_DIR/${SAFE_KEY}.wav"
 
-# 再生中チェック（早い者勝ち: 再生中なら新規リクエストを無視）
-if [ -f "$LOCK_FILE" ]; then
-  LOCK_PID=$(cat "$LOCK_FILE" 2>/dev/null || echo "")
-  if [ -n "$LOCK_PID" ] && kill -0 "$LOCK_PID" 2>/dev/null; then
-    exit 0  # 再生中 → スキップ
-  fi
-  rm -f "$LOCK_FILE"
-fi
+# ヘルパー: ロックが有効か確認（PID 生存 + プロセス名による PID 再利用チェック）
+_lock_is_active() {
+  [ -f "$LOCK_FILE" ] || return 1
+  local pid
+  pid=$(cat "$LOCK_FILE" 2>/dev/null) || return 1
+  [ -n "$pid" ] || return 1
+  kill -0 "$pid" 2>/dev/null || return 1
+  # PID 再利用チェック: プロセス名が音声プレイヤーか確認
+  local comm
+  comm=$(ps -p "$pid" -o comm= 2>/dev/null) || return 1
+  echo "$comm" | grep -qiE '^(afplay|aplay|paplay|powershell|POWERSHELL\.EXE)$'
+}
 
-# OS 別: WAV 再生関数（バックグラウンド再生 + ロック管理）
+# 早期チェック（高速パス: 明らかに再生中の場合のみスキップ）
+if _lock_is_active; then
+  exit 0
+fi
+rm -f "$LOCK_FILE"
+
+# OS 別: WAV 再生関数（再生直前にアトミックなロック取得 + バックグラウンド再生）
 OS=$(uname -s)
 play_wav_bg() {
   local file="$1"
   [ -f "$file" ] || return
+  # TOCTOU 対策: noclobber でアトミックなロック取得を試みる
+  # 別フックが合成中にここへ到達した場合の競合を防止
+  if ! (set -o noclobber; : > "$LOCK_FILE") 2>/dev/null; then
+    if _lock_is_active; then
+      return  # 本当に再生中 → スキップ
+    fi
+    # 孤児ロック → 強制削除して再取得
+    rm -f "$LOCK_FILE"
+    (set -o noclobber; : > "$LOCK_FILE") 2>/dev/null || return
+  fi
   case "$OS" in
     Darwin*)
       afplay "$file" &

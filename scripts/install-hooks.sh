@@ -27,8 +27,14 @@ HOOKS_DIR="$REPO_DIR/.claude/hooks"
 OS=$(uname -s)
 
 # Windows Git Bash では $HOME が未設定の場合がある
+# USERPROFILE は C:\Users\me 形式のため cygpath で POSIX パスに変換する
 if [ -z "${HOME:-}" ] && [ -n "${USERPROFILE:-}" ]; then
-  HOME="$USERPROFILE"
+  if command -v cygpath >/dev/null 2>&1; then
+    HOME="$(cygpath -u "$USERPROFILE")"
+  else
+    echo "WARNING: cygpath が見つかりません。\$HOME を正しく設定できない可能性があります。" >&2
+    HOME="$USERPROFILE"
+  fi
 fi
 
 # ── オプション解析 ──────────────────────────────────────────────────────────
@@ -125,10 +131,15 @@ echo "バックアップ: ${TARGET_SETTINGS}.bak"
 echo ""
 
 # ── フックコマンド定義 ────────────────────────────────────────────────────────
+# printf '%q' でシェル特殊文字をエスケープ（コマンドインジェクション防止）
+# リポジトリパスに $()・バッククォート・スペース等が含まれる場合でも安全
+REPO_DIR_ESC=$(printf '%q' "$REPO_DIR")
+HOOKS_DIR_ESC=$(printf '%q' "$HOOKS_DIR")
+
 # session-start は CLAUDE_PROJECT_DIR を env で渡す（initial_warning.wav の参照に必要）
-SESSION_START_CMD="CLAUDE_PROJECT_DIR=\"${REPO_DIR}\" bash \"${HOOKS_DIR}/zunda-session-start.sh\""
-SESSION_END_CMD="bash \"${HOOKS_DIR}/zunda-session-end.sh\""
-SPEAK_CMD="bash \"${HOOKS_DIR}/zunda-speak.sh\""
+SESSION_START_CMD="CLAUDE_PROJECT_DIR=${REPO_DIR_ESC} bash ${HOOKS_DIR_ESC}/zunda-session-start.sh"
+SESSION_END_CMD="bash ${HOOKS_DIR_ESC}/zunda-session-end.sh"
+SPEAK_CMD="bash ${HOOKS_DIR_ESC}/zunda-speak.sh"
 
 # ── settings.json にフックを追加（冪等） ────────────────────────────────────
 UPDATED=$(jq \
