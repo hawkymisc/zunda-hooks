@@ -178,26 +178,38 @@ if ! curl -sf --connect-timeout 1 "${VOICEVOX_URL}/version" >/dev/null 2>&1; the
   # 起動ロック（noclobber）で排他制御: 1プロセスだけが起動担当となり他は待機
   START_LOCK="$CACHE_DIR/.voicevox.starting"
   if (set -o noclobber; : > "$START_LOCK") 2>/dev/null; then
+    # クラッシュ時のロックリーク防止: EXIT で必ずロックを解放する
+    trap 'rm -f "$START_LOCK"' EXIT
     # 起動ロック取得成功 → 自分がVOICEVOX起動担当
     if [ -n "$VOICEVOX_BIN" ] && [ -f "$VOICEVOX_BIN" ]; then
       # shellcheck disable=SC2086
       nohup "$VOICEVOX_BIN" $VOICEVOX_LAUNCH_OPTS >/dev/null 2>&1 &
       echo $! > "$PID_FILE"
       # エンジンが応答するまで待機（最大30秒）
+      started=false
       for i in $(seq 1 30); do
-        curl -sf --connect-timeout 1 "${VOICEVOX_URL}/version" >/dev/null 2>&1 && break
+        if curl -sf --connect-timeout 1 "${VOICEVOX_URL}/version" >/dev/null 2>&1; then
+          started=true
+          break
+        fi
         sleep 1
       done
+      [ "$started" = "false" ] && echo "zunda-speak: VOICEVOX did not respond within 30s" >&2
     else
       echo "zunda-speak: VOICEVOX not found at ${VOICEVOX_BIN:-(unknown)}" >&2
     fi
     rm -f "$START_LOCK"
   else
     # 他プロセスが起動中 → 応答が来るまで待機（最大30秒）
+    waited=false
     for i in $(seq 1 30); do
-      curl -sf --connect-timeout 1 "${VOICEVOX_URL}/version" >/dev/null 2>&1 && break
+      if curl -sf --connect-timeout 1 "${VOICEVOX_URL}/version" >/dev/null 2>&1; then
+        waited=true
+        break
+      fi
       sleep 1
     done
+    [ "$waited" = "false" ] && echo "zunda-speak: timed out waiting for VOICEVOX" >&2
   fi
 fi
 
