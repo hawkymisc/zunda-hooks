@@ -3,6 +3,7 @@
 
 CACHE_DIR="$HOME/.claude/hooks/zaudio"
 LOCK_FILE="$CACHE_DIR/.playing.lock"
+PID_FILE="$CACHE_DIR/.voicevox.pid"
 VOICEVOX_URL="http://localhost:50021"
 SPEAKER=3
 
@@ -152,7 +153,39 @@ if [ -f "$CACHE_FILE" ]; then
   fi
 fi
 
-# キャッシュミス → VOICEVOX で合成してキャッシュ保存（atomic write）
+# キャッシュミス → VOICEVOX が未起動ならオンデマンド起動
+if ! curl -sf --connect-timeout 1 "${VOICEVOX_URL}/version" >/dev/null 2>&1; then
+  case "$OS" in
+    Linux*)
+      VOICEVOX_BIN="$HOME/.voicevox/VOICEVOX.AppImage"
+      VOICEVOX_LAUNCH_OPTS="--no-sandbox" ;;
+    Darwin*)
+      VOICEVOX_BIN="/Applications/VOICEVOX.app/Contents/MacOS/VOICEVOX"
+      VOICEVOX_LAUNCH_OPTS="" ;;
+    MINGW*|MSYS*|CYGWIN*)
+      if [ -n "${LOCALAPPDATA:-}" ]; then
+        VOICEVOX_BIN="${LOCALAPPDATA}/Programs/VOICEVOX/VOICEVOX.exe"
+      else
+        VOICEVOX_BIN=""
+      fi
+      VOICEVOX_LAUNCH_OPTS="" ;;
+    *)
+      VOICEVOX_BIN=""
+      VOICEVOX_LAUNCH_OPTS="" ;;
+  esac
+  if [ -n "$VOICEVOX_BIN" ] && [ -f "$VOICEVOX_BIN" ]; then
+    # shellcheck disable=SC2086
+    nohup "$VOICEVOX_BIN" $VOICEVOX_LAUNCH_OPTS >/dev/null 2>&1 &
+    echo $! > "$PID_FILE"
+    # エンジンが応答するまで待機（最大30秒）
+    for i in $(seq 1 30); do
+      curl -sf --connect-timeout 1 "${VOICEVOX_URL}/version" >/dev/null 2>&1 && break
+      sleep 1
+    done
+  fi
+fi
+
+# VOICEVOX で合成してキャッシュ保存（atomic write）
 ENCODED_TEXT=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" "$TEXT")
 QUERY=$(curl -sf --connect-timeout 3 -X POST \
   "${VOICEVOX_URL}/audio_query?text=${ENCODED_TEXT}&speaker=${SPEAKER}" \
