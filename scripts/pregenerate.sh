@@ -107,6 +107,25 @@ generate "PostToolUse_Bash_GhPrCreate" "プルリクエストを作ったのだ"
 echo ""
 generate_to_assets
 
+# キャッシュマニフェストを更新（zunda-session-start.sh がキャッシュ完備を判断するために使用）
+# 注意: generate() で生成したキーのみを記録すること（generate_to_assets は対象外）
+cat > "$CACHE_DIR/.cache-manifest" <<'MANIFEST'
+PreToolUse_Bash
+PreToolUse_Write
+PreToolUse_Edit
+PreToolUse_Read
+PreToolUse_Glob
+PreToolUse_Grep
+PostToolUse_Bash
+PostToolUse_Write
+PostToolUse_Edit
+PreToolUse_Bash_GitPush
+PreToolUse_Bash_GhPrCreate
+PostToolUse_Bash_GitPush
+PostToolUse_Bash_GhPrCreate
+MANIFEST
+echo "updated: .cache-manifest"
+
 echo ""
 echo "=== 完了 ==="
 ls -lh "$CACHE_DIR"/*.wav 2>/dev/null || echo "(WAVファイルなし)"

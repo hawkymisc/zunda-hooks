@@ -77,23 +77,24 @@ play_wav() {
   esac
 }
 
-# 必須キャッシュファイルがすべて存在するか確認
-REQUIRED_CACHE_KEYS=(
-  "PreToolUse_Bash" "PreToolUse_Write" "PreToolUse_Edit"
-  "PreToolUse_Read" "PreToolUse_Glob" "PreToolUse_Grep"
-  "PostToolUse_Bash" "PostToolUse_Write" "PostToolUse_Edit"
-  "PreToolUse_Bash_GitPush" "PreToolUse_Bash_GhPrCreate"
-  "PostToolUse_Bash_GitPush" "PostToolUse_Bash_GhPrCreate"
-)
-ALL_CACHED=true
-for key in "${REQUIRED_CACHE_KEYS[@]}"; do
-  if [ ! -s "$CACHE_DIR/${key}.wav" ]; then
-    ALL_CACHED=false
-    break
-  fi
-done
+# キャッシュマニフェストに記載された全ファイルが存在するか確認
+# マニフェストは pregenerate.sh 実行時に生成される
+# 注意: キャッシュ完備でも未知のツール名はリアルタイム合成が必要なため、
+#       VOICEVOX を使いたい場合は手動で起動するか pregenerate.sh を再実行してください
+CACHE_MANIFEST="$CACHE_DIR/.cache-manifest"
+ALL_CACHED=false
+if [ -f "$CACHE_MANIFEST" ]; then
+  ALL_CACHED=true
+  while IFS= read -r key || [ -n "$key" ]; do
+    [ -n "$key" ] || continue
+    if [ ! -s "$CACHE_DIR/${key}.wav" ]; then
+      ALL_CACHED=false
+      break
+    fi
+  done < "$CACHE_MANIFEST"
+fi
 
-# VOICEVOX が未起動なら起動（キャッシュが全て揃っている場合はスキップ）
+# VOICEVOX が未起動なら起動（マニフェスト記載のキャッシュが全て揃っている場合はスキップ）
 if [ "$ALL_CACHED" = "false" ] && ! curl -sf --connect-timeout 2 "${VOICEVOX_URL}/version" >/dev/null 2>&1; then
   if [ -n "$VOICEVOX_BIN" ] && [ -f "$VOICEVOX_BIN" ]; then
     # shellcheck disable=SC2086
