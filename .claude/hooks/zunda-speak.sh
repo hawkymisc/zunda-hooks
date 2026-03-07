@@ -155,6 +155,7 @@ fi
 
 # キャッシュミス → VOICEVOX が未起動ならオンデマンド起動
 if ! curl -sf --connect-timeout 1 "${VOICEVOX_URL}/version" >/dev/null 2>&1; then
+  # OS別バイナリパスを解決
   case "$OS" in
     Linux*)
       VOICEVOX_BIN="$HOME/.voicevox/VOICEVOX.AppImage"
@@ -173,11 +174,26 @@ if ! curl -sf --connect-timeout 1 "${VOICEVOX_URL}/version" >/dev/null 2>&1; the
       VOICEVOX_BIN=""
       VOICEVOX_LAUNCH_OPTS="" ;;
   esac
-  if [ -n "$VOICEVOX_BIN" ] && [ -f "$VOICEVOX_BIN" ]; then
-    # shellcheck disable=SC2086
-    nohup "$VOICEVOX_BIN" $VOICEVOX_LAUNCH_OPTS >/dev/null 2>&1 &
-    echo $! > "$PID_FILE"
-    # エンジンが応答するまで待機（最大30秒）
+
+  # 起動ロック（noclobber）で排他制御: 1プロセスだけが起動担当となり他は待機
+  START_LOCK="$CACHE_DIR/.voicevox.starting"
+  if (set -o noclobber; : > "$START_LOCK") 2>/dev/null; then
+    # 起動ロック取得成功 → 自分がVOICEVOX起動担当
+    if [ -n "$VOICEVOX_BIN" ] && [ -f "$VOICEVOX_BIN" ]; then
+      # shellcheck disable=SC2086
+      nohup "$VOICEVOX_BIN" $VOICEVOX_LAUNCH_OPTS >/dev/null 2>&1 &
+      echo $! > "$PID_FILE"
+      # エンジンが応答するまで待機（最大30秒）
+      for i in $(seq 1 30); do
+        curl -sf --connect-timeout 1 "${VOICEVOX_URL}/version" >/dev/null 2>&1 && break
+        sleep 1
+      done
+    else
+      echo "zunda-speak: VOICEVOX not found at ${VOICEVOX_BIN:-(unknown)}" >&2
+    fi
+    rm -f "$START_LOCK"
+  else
+    # 他プロセスが起動中 → 応答が来るまで待機（最大30秒）
     for i in $(seq 1 30); do
       curl -sf --connect-timeout 1 "${VOICEVOX_URL}/version" >/dev/null 2>&1 && break
       sleep 1
