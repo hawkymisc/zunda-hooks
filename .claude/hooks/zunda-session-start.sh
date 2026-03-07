@@ -77,8 +77,24 @@ play_wav() {
   esac
 }
 
-# VOICEVOX が未起動なら起動
-if ! curl -sf --connect-timeout 2 "${VOICEVOX_URL}/version" >/dev/null 2>&1; then
+# 必須キャッシュファイルがすべて存在するか確認
+REQUIRED_CACHE_KEYS=(
+  "PreToolUse_Bash" "PreToolUse_Write" "PreToolUse_Edit"
+  "PreToolUse_Read" "PreToolUse_Glob" "PreToolUse_Grep"
+  "PostToolUse_Bash" "PostToolUse_Write" "PostToolUse_Edit"
+  "PreToolUse_Bash_GitPush" "PreToolUse_Bash_GhPrCreate"
+  "PostToolUse_Bash_GitPush" "PostToolUse_Bash_GhPrCreate"
+)
+ALL_CACHED=true
+for key in "${REQUIRED_CACHE_KEYS[@]}"; do
+  if [ ! -s "$CACHE_DIR/${key}.wav" ]; then
+    ALL_CACHED=false
+    break
+  fi
+done
+
+# VOICEVOX が未起動なら起動（キャッシュが全て揃っている場合はスキップ）
+if [ "$ALL_CACHED" = "false" ] && ! curl -sf --connect-timeout 2 "${VOICEVOX_URL}/version" >/dev/null 2>&1; then
   if [ -n "$VOICEVOX_BIN" ] && [ -f "$VOICEVOX_BIN" ]; then
     # shellcheck disable=SC2086
     nohup "$VOICEVOX_BIN" $VOICEVOX_LAUNCH_OPTS >/dev/null 2>&1 &
