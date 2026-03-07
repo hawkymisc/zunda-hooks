@@ -199,6 +199,7 @@ if ! curl -sf --connect-timeout 1 "${VOICEVOX_URL}/version" >/dev/null 2>&1; the
       echo "zunda-speak: VOICEVOX not found at ${VOICEVOX_BIN:-(unknown)}" >&2
     fi
     rm -f "$START_LOCK"
+    trap - EXIT  # ロック解放済みなので EXIT トラップをリセット（他プロセスのロックを消さないため）
   else
     # 他プロセスが起動中 → 応答が来るまで待機（最大30秒）
     waited=false
