@@ -87,6 +87,8 @@ if [ -f "$CACHE_MANIFEST" ]; then
   ALL_CACHED=true
   while IFS= read -r key || [ -n "$key" ]; do
     [ -n "$key" ] || continue
+    # パストラバーサル防止: 英数字・アンダースコアのみ許可
+    [[ "$key" =~ ^[A-Za-z0-9_]+$ ]] || continue
     if [ ! -s "$CACHE_DIR/${key}.wav" ]; then
       ALL_CACHED=false
       break

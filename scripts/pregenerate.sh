@@ -88,42 +88,43 @@ if ! find "$CACHE_DIR" -maxdepth 1 -type f -name "*.wav" -print -quit 2>/dev/nul
   fi
 fi
 
+# ツール音声マップ（キー:テキスト）— ここが唯一の正とする
+# generate() 呼び出しとキャッシュマニフェストの両方をこの配列から生成するため、
+# 新しいキーを追加する際はここだけ変更すればよい
+TOOL_AUDIO_MAP=(
+  "PreToolUse_Bash:コマンドを実行するのだ"
+  "PreToolUse_Write:ファイルを書き込むのだ"
+  "PreToolUse_Edit:ファイルを編集するのだ"
+  "PreToolUse_Read:ファイルを読むのだ"
+  "PreToolUse_Glob:ファイルを探すのだ"
+  "PreToolUse_Grep:ファイルを検索するのだ"
+  "PostToolUse_Bash:コマンドが完了したのだ"
+  "PostToolUse_Write:書き込みが完了したのだ"
+  "PostToolUse_Edit:編集が完了したのだ"
+  "PreToolUse_Bash_GitPush:プッシュするのだ"
+  "PreToolUse_Bash_GhPrCreate:プルリクエストを作るのだ"
+  "PostToolUse_Bash_GitPush:プッシュが完了したのだ"
+  "PostToolUse_Bash_GhPrCreate:プルリクエストを作ったのだ"
+)
+
 # ツール音声の生成
-generate "PreToolUse_Bash"    "コマンドを実行するのだ"
-generate "PreToolUse_Write"   "ファイルを書き込むのだ"
-generate "PreToolUse_Edit"    "ファイルを編集するのだ"
-generate "PreToolUse_Read"    "ファイルを読むのだ"
-generate "PreToolUse_Glob"    "ファイルを探すのだ"
-generate "PreToolUse_Grep"    "ファイルを検索するのだ"
-generate "PostToolUse_Bash"   "コマンドが完了したのだ"
-generate "PostToolUse_Write"  "書き込みが完了したのだ"
-generate "PostToolUse_Edit"   "編集が完了したのだ"
-generate "PreToolUse_Bash_GitPush"     "プッシュするのだ"
-generate "PreToolUse_Bash_GhPrCreate"  "プルリクエストを作るのだ"
-generate "PostToolUse_Bash_GitPush"    "プッシュが完了したのだ"
-generate "PostToolUse_Bash_GhPrCreate" "プルリクエストを作ったのだ"
+for entry in "${TOOL_AUDIO_MAP[@]}"; do
+  key="${entry%%:*}"
+  text="${entry#*:}"
+  generate "$key" "$text"
+done
 
 # 初回警告音声の生成（assets/ へ保存）
 echo ""
 generate_to_assets
 
 # キャッシュマニフェストを更新（zunda-session-start.sh がキャッシュ完備を判断するために使用）
-# 注意: generate() で生成したキーのみを記録すること（generate_to_assets は対象外）
-cat > "$CACHE_DIR/.cache-manifest" <<'MANIFEST'
-PreToolUse_Bash
-PreToolUse_Write
-PreToolUse_Edit
-PreToolUse_Read
-PreToolUse_Glob
-PreToolUse_Grep
-PostToolUse_Bash
-PostToolUse_Write
-PostToolUse_Edit
-PreToolUse_Bash_GitPush
-PreToolUse_Bash_GhPrCreate
-PostToolUse_Bash_GitPush
-PostToolUse_Bash_GhPrCreate
-MANIFEST
+# TOOL_AUDIO_MAP からキーのみを抽出して書き出す（generate_to_assets は対象外）
+{
+  for entry in "${TOOL_AUDIO_MAP[@]}"; do
+    printf '%s\n' "${entry%%:*}"
+  done
+} > "$CACHE_DIR/.cache-manifest"
 echo "updated: .cache-manifest"
 
 echo ""
