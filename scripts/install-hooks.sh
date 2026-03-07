@@ -23,6 +23,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 HOOKS_DIR="$REPO_DIR/.claude/hooks"
 
+# OS 判定（jq インストール案内 / VOICEVOX パス表示に使用）
+OS=$(uname -s)
+
+# Windows Git Bash では $HOME が未設定の場合がある
+if [ -z "${HOME:-}" ] && [ -n "${USERPROFILE:-}" ]; then
+  HOME="$USERPROFILE"
+fi
+
 # ── オプション解析 ──────────────────────────────────────────────────────────
 TARGET_MODE="user"
 PROJECT_DIR=""
@@ -82,7 +90,14 @@ echo ""
 # ── 前提チェック ─────────────────────────────────────────────────────────────
 if ! command -v jq >/dev/null 2>&1; then
   echo "ERROR: jq が見つかりません。インストールしてください:" >&2
-  echo "  sudo apt install jq" >&2
+  case "$OS" in
+    Darwin*)
+      echo "  brew install jq" >&2 ;;
+    MINGW*|MSYS*|CYGWIN*)
+      echo "  winget install jqlang.jq  # または: choco install jq / scoop install jq" >&2 ;;
+    *)
+      echo "  sudo apt install jq  # または: sudo dnf install jq" >&2 ;;
+  esac
   exit 1
 fi
 
@@ -140,7 +155,7 @@ UPDATED=$(jq \
   add_hook("PostToolUse";  {"hooks": [{"type": "command", "command": $sp_cmd, "async": true}]})
   ' "$TARGET_SETTINGS")
 
-echo "$UPDATED" > "$TARGET_SETTINGS"
+printf '%s\n' "$UPDATED" > "$TARGET_SETTINGS"
 
 echo "インストール完了!"
 echo ""
@@ -151,5 +166,12 @@ echo "  PreToolUse    → zunda-speak.sh         (async=true)"
 echo "  PostToolUse   → zunda-speak.sh         (async=true)"
 echo ""
 echo "次のステップ:"
-echo "  1. VOICEVOX を起動: \$HOME/.voicevox/VOICEVOX.AppImage --no-sandbox"
+case "$OS" in
+  Darwin*)
+    echo "  1. VOICEVOX を起動: open /Applications/VOICEVOX.app" ;;
+  MINGW*|MSYS*|CYGWIN*)
+    echo "  1. VOICEVOX を起動: \${LOCALAPPDATA}/Programs/VOICEVOX/VOICEVOX.exe" ;;
+  *)
+    echo "  1. VOICEVOX を起動: \$HOME/.voicevox/VOICEVOX.AppImage --no-sandbox" ;;
+esac
 echo "  2. 音声キャッシュを生成: bash scripts/pregenerate.sh"
