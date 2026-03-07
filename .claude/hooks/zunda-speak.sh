@@ -2,6 +2,7 @@
 # ずんだもん音声フックスクリプト（PreToolUse / PostToolUse 共用）
 
 CACHE_DIR="$HOME/.claude/hooks/zaudio"
+LOCK_FILE="$CACHE_DIR/.playing.lock"
 VOICEVOX_URL="http://localhost:50021"
 SPEAKER=3
 
@@ -77,14 +78,24 @@ mkdir -p "$CACHE_DIR"
 SAFE_KEY=$(echo "$CACHE_KEY" | tr -cd '[:alnum:]_')
 CACHE_FILE="$CACHE_DIR/${SAFE_KEY}.wav"
 
-# OS 別: WAV 再生関数（バックグラウンド再生）
+# 再生中チェック（早い者勝ち: 再生中なら新規リクエストを無視）
+if [ -f "$LOCK_FILE" ]; then
+  LOCK_PID=$(cat "$LOCK_FILE" 2>/dev/null || echo "")
+  if [ -n "$LOCK_PID" ] && kill -0 "$LOCK_PID" 2>/dev/null; then
+    exit 0  # 再生中 → スキップ
+  fi
+  rm -f "$LOCK_FILE"
+fi
+
+# OS 別: WAV 再生関数（バックグラウンド再生 + ロック管理）
 OS=$(uname -s)
 play_wav_bg() {
   local file="$1"
   [ -f "$file" ] || return
   case "$OS" in
     Darwin*)
-      afplay "$file" & ;;
+      afplay "$file" &
+      echo $! > "$LOCK_FILE" ;;
     MINGW*|MSYS*|CYGWIN*)
       local winpath
       if command -v cygpath >/dev/null 2>&1; then
@@ -96,12 +107,15 @@ play_wav_bg() {
       # シングルクォートをエスケープ（PowerShell インジェクション防止）
       local escaped="${winpath//\'/\'\'}"
       powershell.exe -NoProfile -Command \
-        "(New-Object Media.SoundPlayer '$escaped').PlaySync()" 2>/dev/null & ;;
+        "(New-Object Media.SoundPlayer '$escaped').PlaySync()" 2>/dev/null &
+      echo $! > "$LOCK_FILE" ;;
     *)
       if command -v aplay >/dev/null 2>&1; then
         aplay -q "$file" &
+        echo $! > "$LOCK_FILE"
       elif command -v paplay >/dev/null 2>&1; then
         paplay "$file" &
+        echo $! > "$LOCK_FILE"
       else
         echo "zunda-speak: no audio player found (aplay/paplay/afplay)" >&2
       fi ;;
